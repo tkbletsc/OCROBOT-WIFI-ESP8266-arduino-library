@@ -22,12 +22,13 @@
 #define    AT+STA  3
 
 
+
 class WIFI
 {
   public:
 
     WIFI(void);
-    //String begin(void);
+   // String begin(void);
     /*=================WIFI功能指令=================*/
     void Reset(void);    //重启模块
     String showMode(void);   //查询模块目前模式

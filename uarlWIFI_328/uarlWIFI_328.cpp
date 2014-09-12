@@ -1,14 +1,21 @@
 #include <uarlWIFI_328.h>
 
-//String WIFI::begin(void)
-SoftwareSerial mySerial(A0,A1);
+
+SoftwareSerial mySerial(10,11);  //rx tx
 
 WIFI::WIFI(void)
 {
-  
-  mySerial.begin(9600);
-  
+   //SoftwareSerial mySerial(A0,A1);  //rx tx
+    mySerial.begin(9600);
 }
+
+
+
+//String WIFI::begin(void)
+//{
+//    mySerial.begin(9600);
+//}
+
 
 /*===================================*/
 /*
