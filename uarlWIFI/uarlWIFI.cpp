@@ -46,7 +46,7 @@ void WIFI::Reset(void)
 String WIFI::showMode()
 {
     String data;
-    Serial1.println("AT+oakMODE?");  //发送AT指令
+    Serial1.println("AT+MODE?");  //发送AT指令
     while (1) {
      if(Serial1.available()>0)
      {
@@ -83,7 +83,7 @@ String WIFI::showMode()
 void WIFI::confMode(byte a)
 {
     String data;
-     Serial1.print("AT+oakMODE=");  //发送AT指令
+     Serial1.print("AT+MODE=");  //发送AT指令
      Serial1.println(String(a));
      while (1) {
       if(Serial1.available()>0)
@@ -110,7 +110,7 @@ void WIFI::confMode(byte a)
 String WIFI::showAP(void)
 {
     String data;
-    Serial1.println("AT+oakShowAP");  //发送AT指令
+    Serial1.println("AT+ShowAP");  //发送AT指令
     while (1) {
    if(Serial1.available()>0)
    {
@@ -129,7 +129,7 @@ String WIFI::showAP(void)
     else{
        char head[4] = {0x0D,0x0A};   //头部多余字符串
        char tail[7] = {0x0D,0x0A,0x0D,0x0A};        //尾部多余字符串
-       data.replace("AT+oakShowAP","");
+       data.replace("AT+ShowAP","");
        data.replace("done","");
        data.replace("+ShowAP","WIFI");
        data.replace(head,"");
@@ -147,7 +147,7 @@ String WIFI::showAP(void)
 /*===================================*/
 String WIFI::showJAP(void)
 {
-    Serial1.println("AT+oakJoinAP?");  //发送AT指令
+    Serial1.println("AT+JoinAP?");  //发送AT指令
       String data;
       while (1) {
        if(Serial1.available()>0)
@@ -162,8 +162,8 @@ String WIFI::showJAP(void)
     }
       char head[4] = {0x0D,0x0A};   //头部多余字符串
       char tail[7] = {0x0D,0x0A,0x0D,0x0A};        //尾部多余字符串
-      data.replace("AT+oakJoinAP?","");
-      data.replace("+oakJoinAP","AP");
+      data.replace("AT+JoinAP?","");
+      data.replace("+JoinAP","AP");
       data.replace("done","");
       data.replace(head,"");
       data.replace(tail,"");
@@ -177,7 +177,7 @@ String WIFI::showJAP(void)
 /*=======================================*/
 void WIFI::confJAP(String ssid , String pwd)
 {
-    Serial1.print("AT+oakJoinAP=");
+    Serial1.print("AT+JoinAP=");
     Serial1.print("\"");     //"ssid"
     Serial1.print(ssid);
     Serial1.print("\"");
@@ -205,7 +205,7 @@ void WIFI::confJAP(String ssid , String pwd)
 
 void WIFI::quitAP(void)
 {
-    Serial1.println("AT+oakExtAP");
+    Serial1.println("AT+ExtAP");
     while (1) {                            //当串口有完成数据返回时，结束语句
         if(Serial1.find("done")==true)
         {
@@ -224,7 +224,7 @@ void WIFI::quitAP(void)
 /*==============================================*/
 String WIFI::showSAP()
 {
-    Serial1.println("AT+oakSAP?");  //发送AT指令
+    Serial1.println("AT+SAP?");  //发送AT指令
       String data;
       while (1) {
        if(Serial1.available()>0)
@@ -239,8 +239,8 @@ String WIFI::showSAP()
     }
       char head[4] = {0x0D,0x0A};   //头部多余字符串
       char tail[7] = {0x0D,0x0A,0x0D,0x0A};        //尾部多余字符串
-      data.replace("AT+oakSAP?","");
-      data.replace("+oakSAP","mySAP");
+      data.replace("AT+SAP?","");
+      data.replace("+SAP","mySAP");
       data.replace("done","");
       data.replace(head,"");
       data.replace(tail,"");
@@ -257,7 +257,7 @@ String WIFI::showSAP()
 
 void WIFI::confSAP(String ssid , String pwd , byte chl , byte ecn)
 {
-    Serial1.print("AT+oakSAP=");  //发送AT指令
+    Serial1.print("AT+SAP=");  //发送AT指令
     Serial1.print("\"");     //"ssid"
     Serial1.print(ssid);
     Serial1.print("\"");
@@ -305,7 +305,7 @@ void WIFI::confSAP(String ssid , String pwd , byte chl , byte ecn)
  /*============================================*/
 String WIFI::showStatus(void)
 {
-    Serial1.println("AT+oakShowSTA");  //发送AT指令
+    Serial1.println("AT+ShowSTA");  //发送AT指令
       String data;
       while (1) {
        if(Serial1.available()>0)
@@ -321,7 +321,7 @@ String WIFI::showStatus(void)
 
           char head[4] = {0x0D,0x0A};   //头部多余字符串
           char tail[7] = {0x0D,0x0A,0x0D,0x0A};        //尾部多余字符串
-          data.replace("AT+oakShowSTA","");
+          data.replace("AT+ShowSTA","");
           data.replace("done","");
           data.replace(head,"");
           data.replace(tail,"");
@@ -336,7 +336,7 @@ String WIFI::showStatus(void)
 String WIFI::showMux(void)
 {
     String data;
-    Serial1.println("AT+oakMUX?");  //发送AT指令
+    Serial1.println("AT+MUX?");  //发送AT指令
 
       while (1) {
        if(Serial1.available()>0)
@@ -350,8 +350,8 @@ String WIFI::showMux(void)
        }
     }
           char head[3]={0x0D,0x0A};   //将回显数据处理成需要的格式
-          data.replace("AT+oakMUX?","");
-          data.replace("+oakMUX","showMux");
+          data.replace("AT+MUX?","");
+          data.replace("+MUX","showMux");
           data.replace("done","");
           data.replace(head,"");
           return data;
@@ -364,7 +364,7 @@ String WIFI::showMux(void)
 /*============================================*/
 void WIFI::confMux(boolean a)
 {
- Serial1.print("AT+oakMUX=");
+ Serial1.print("AT+MUX=");
  Serial1.println(a);           //发送AT指令
  while (1) {                            //当串口有完成数据返回时，结束语句
      if(Serial1.find("done")==true || Serial1.find("Link is builded")==true)
@@ -385,7 +385,7 @@ void WIFI::newMux(byte type, String addr, int port)
 
 {
     String data;
-    Serial1.print("AT+oakNewSTA=");
+    Serial1.print("AT+NewSTA=");
     if(type>0)
     {
         Serial1.print("\"TCP\"");
@@ -423,7 +423,7 @@ void WIFI::newMux( byte id, byte type, String addr, int port)
 
 {
 
-    Serial1.print("AT+oakNewSTA=");
+    Serial1.print("AT+NewSTA=");
     Serial1.print("\"");
     Serial1.print(String(id));
     Serial1.print("\"");
@@ -465,7 +465,7 @@ void WIFI::newMux( byte id, byte type, String addr, int port)
 /*==============================================*/
 void WIFI::Send(String str)
 {
-    Serial1.print("AT+oakUpDate=");
+    Serial1.print("AT+UpDate=");
 //    Serial1.print("\"");
     Serial1.println(str.length());
 //    Serial1.println("\"");
@@ -500,7 +500,7 @@ void WIFI::Send(String str)
 /*==============================================*/
 void WIFI::Send(byte id, String str)
 {
-    Serial1.print("AT+oakUpDate=");
+    Serial1.print("AT+UpDate=");
 
     Serial1.print(String(id));
     Serial1.println(",");
@@ -537,7 +537,7 @@ void WIFI::Send(byte id, String str)
 /*=======================================*/
 void WIFI::closeMux(void)
 {
-    Serial1.println("AT+oakCLOSE");
+    Serial1.println("AT+CLOSE");
 
     String data;
     while (1) {
@@ -563,7 +563,7 @@ void WIFI::closeMux(void)
 /*=======================================*/
 void WIFI::closeMux(byte id)
 {
-    Serial1.print("AT+oakCLOSE=");
+    Serial1.print("AT+CLOSE=");
     Serial1.println(String(id));
     String data;
     while (1) {
@@ -587,7 +587,7 @@ void WIFI::closeMux(byte id)
 /*=========================================*/
 String WIFI::showIP(void)
 {
-    Serial1.println("AT+oakShowIP");  //发送AT指令
+    Serial1.println("AT+ShowIP");  //发送AT指令
     String data;
     while (1) {
      if(Serial1.available()>0)
@@ -613,7 +613,7 @@ String WIFI::showIP(void)
 
 void WIFI::confServer(byte mode, int port)
 {
-    Serial1.print("AT+oakServer=");  //发送AT指令
+    Serial1.print("AT+Server=");  //发送AT指令
     Serial1.print(String(mode));
     Serial1.print(",");
     Serial1.println(String(port));
