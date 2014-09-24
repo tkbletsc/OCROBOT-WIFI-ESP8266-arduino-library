@@ -2,14 +2,161 @@
 
 //String WIFI::begin(void)
 
+
+// SEMAPHORE_DECL(sem, 0);
+// 
+// NIL_WORKING_AREA(waThread1, 128);
+// 
+// NIL_THREAD(Thread_IP, arg) {
+// 	while (TRUE) {
+// 		pinMode(13, OUTPUT);
+// 		digitalWrite(13, HIGH);
+// 		nilThdSleepMilliseconds(500);
+// 		digitalWrite(13, LOW);
+// 		nilThdSleepMilliseconds(500);
+// 	}
+// }
+// 
+// 
+// NIL_THREADS_TABLE_BEGIN()
+// NIL_THREADS_TABLE_ENTRY("thread1", Thread_IP, NULL, waThread1, sizeof(waThread1))
+// NIL_THREADS_TABLE_END()
+
 WIFI::WIFI(void)
 {
+	//nilSysBegin();
+	Serial.begin(9600);
   Serial1.begin(9600);
   while (!Serial1)
   {
      //等待串口连接。只有 Leonardo 需要。
    }
+   
+
 }
+
+
+//////////////////////////////////////////////////////////////////////////
+//整合接口
+bool WIFI::Initialize(byte a, String ssid, String pwd, byte chl, byte ecn)
+{
+	if (a == 1)
+	{	
+		bool b = confMode(a);
+		if (!b)
+		{
+			return false;
+		}
+		Reset();
+		confJAP(ssid, pwd);
+	}
+	else if (a == 2)
+	{
+		bool b = confMode(a);
+		if (!b)
+		{
+			return false;
+		}
+		Reset();
+		confSAP(ssid, pwd, chl, ecn);
+	}
+	else if (a == 3)
+	{
+		bool b = confMode(a);
+		if (!b)
+		{
+			return false;
+		}
+		Reset();
+		confJAP(ssid, pwd);
+		confSAP(ssid, pwd, chl, ecn);
+	}
+	
+	return true;
+}
+
+void WIFI::ipConfig(byte type, String addr, int port, boolean a, byte id)
+{
+	if (a == 0 )
+	{
+		confMux(a);
+		long timeStart = millis();
+		while (1)
+		{
+			long time0 = millis();
+			if (time0 - timeStart > 5000)
+			{
+				break;
+			}
+		}
+		newMux(type, addr, port);
+	}
+	else if (a == 1)
+	{
+		confMux(a);
+		long timeStart = millis();
+		while (1)
+		{
+			long time0 = millis();
+			if (time0 - timeStart > 5000)
+			{
+				break;
+			}
+		}
+		newMux(id, type, addr, port);
+	}
+}
+
+
+int WIFI::ReceiveMessage(char *buf, int MsgLen)
+{
+	//+IPD:11,wifi read11
+	//done
+	String data = "";
+	if (Serial1.available()>0)
+	{
+		//Serial.println(Serial1.available());
+		char c0 = Serial1.read();
+		if (c0 == '+')
+		{
+			while (1)
+			{
+				if (Serial1.available()>0)
+				{
+					char c = Serial1.read();
+					data += c;
+				}
+				if (data.indexOf("done")!=-1)
+				{
+					break;
+				}
+			}
+			//Serial.println(data);
+			int sLen = strlen(data.c_str());
+			int i;
+			for (i = 0; i <= sLen; i++)
+			{
+				if (data[i] == ':')
+				{
+					break;
+				}
+				
+			}
+			String _size = data.substring(4, i);
+			int iSize = _size.toInt();
+			//Serial.println(_size);
+			String str = data.substring(i+1, i+1+iSize);
+			strcpy(buf, str.c_str());
+			//Serial.println(str);
+			return iSize;
+		}
+	}
+	
+	return 0;
+}
+
+//////////////////////////////////////////////////////////////////////////
+
 
 /*===================================*/
 /*
@@ -80,7 +227,7 @@ String WIFI::showMode()
  * */
 /*================================*/
 
-void WIFI::confMode(byte a)
+bool WIFI::confMode(byte a)
 {
     String data;
      Serial1.print("AT+MODE=");  //发送AT指令
@@ -93,8 +240,13 @@ void WIFI::confMode(byte a)
       }
       if (data.indexOf("done")!=-1 || data.indexOf("no change")!=-1)
       {
-          break;
+          return true;
       }
+	  if (data.indexOf("error")!=-1 || data.indexOf("busy")!=-1)
+	  {
+		  return false;
+	  }
+	  
    }
 }
 
