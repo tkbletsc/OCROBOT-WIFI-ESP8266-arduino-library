@@ -1,31 +1,10 @@
 #include <uarlWIFI.h>
 
-//String WIFI::begin(void)
 
-
-// SEMAPHORE_DECL(sem, 0);
-// 
-// NIL_WORKING_AREA(waThread1, 128);
-// 
-// NIL_THREAD(Thread_IP, arg) {
-// 	while (TRUE) {
-// 		pinMode(13, OUTPUT);
-// 		digitalWrite(13, HIGH);
-// 		nilThdSleepMilliseconds(500);
-// 		digitalWrite(13, LOW);
-// 		nilThdSleepMilliseconds(500);
-// 	}
-// }
-// 
-// 
-// NIL_THREADS_TABLE_BEGIN()
-// NIL_THREADS_TABLE_ENTRY("thread1", Thread_IP, NULL, waThread1, sizeof(waThread1))
-// NIL_THREADS_TABLE_END()
 
 WIFI::WIFI(void)
 {
-	//nilSysBegin();
-	//Serial.begin(9600);
+
   Serial1.begin(9600);
   while (!Serial1)
   {
@@ -168,7 +147,7 @@ void WIFI::Reset(void)
 {
     Serial1.println("AT+Reset");
     while (1) {                            //当串口有完成数据返回时，结束语句
-        if(Serial1.find("OCROBOT WIFI ready!!!")==true)
+        if(Serial1.find("OCROBOT WIFI ready")==true)
         {
            break;
         }
