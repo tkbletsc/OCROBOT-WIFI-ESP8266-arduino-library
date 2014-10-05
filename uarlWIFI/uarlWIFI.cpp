@@ -1,122 +1,176 @@
+/**
+ * ESP8266 library
+ * 
+ * Original by user "534659123" on github -- https://github.com/534659123/OCROBOT-WIFI-ESP8266-arduino-library
+ * Adapted by Tyler Bletsch (Tyler.Bletsch@gmail.com) -- https://github.com/tkbletsc/OCROBOT-WIFI-ESP8266-arduino-library
+ */
 #include <uarlWIFI.h>
 
+WIFI::WIFI(void) {
+    //SERIAL_WIFI.println("constr");
+    dbg = NULL;
+}
 
+// allows debug_println, etc. after set_debug_stream has been called to provide a stream (e.g. a SoftwareSerial object)
+#define debug_print(s)   { if (dbg) dbg->print(s); }
+#define debug_printhex(s)   { if (dbg) dbg->print(s,HEX); }
+#define debug_println(s) { if (dbg) dbg->println(s); }
 
-WIFI::WIFI(void)
-{
+#define DEBUG_EXPECT 0
 
-  Serial1.begin(9600);
-  while (!Serial1)
-  {
-     //等待串口连接。只有 Leonardo 需要。
-   }
-   
+void WIFI::set_debug_stream(Stream& s) {
+    dbg = &s;
+}
+
+bool WIFI::command(char* cmd, char* exp1, char* exp2, int timeout) {
+    debug_print("> ");
+    debug_println(cmd);
+    SERIAL_WIFI.println(cmd);
+    SERIAL_WIFI.flush();
+    return expect(exp1,exp2,timeout);
+}
+
+bool WIFI::expect(char* exp1, char* exp2, int timeout) {
+    char* e1 = exp1;
+    char* e2 = exp2;
+    String data;
+    int tStart = millis();
+    while (millis() < tStart+timeout) {
+        if (SERIAL_WIFI.available()) {
+            char c = SERIAL_WIFI.read();
+            data += c;
+            if (c==*e1) {
+                e1++;
+                if (*e1 == '\0') {
+                    debug_println("< yes1")
+#if DEBUG_EXPECT
+                    debug_print("<<")
+                    debug_print(data);
+                    debug_println(">>")
+#endif
+                    return true;
+                }
+            } else {
+                e1 = exp1;
+            }
+            if (exp2 && c==*e2) {
+                e2++;
+                if (*e2 == '\0') {
+                    debug_println("< yes2")
+#if DEBUG_EXPECT
+                    debug_print("yes2:<<")
+                    debug_print(data);
+                    debug_println(">>")
+#endif
+                    return true;
+                }
+            } else {
+                e2 = exp2;
+            }
+        }
+    }
+    debug_println("< no")
+#if DEBUG_EXPECT
+    debug_print("no:<<")
+    debug_print(data);
+    debug_println(">>")
+#endif
+    return false;
 
 }
 
 
-//////////////////////////////////////////////////////////////////////////
-//整合接口
-bool WIFI::Initialize(byte a, String ssid, String pwd, byte chl, byte ecn)
-{
-	if (a == 1)
-	{	
-		bool b = confMode(a);
-		if (!b)
-		{
+bool WIFI::Initialize(wifi_mode_t mode, char* ssid, char* pwd, byte channel, wifi_enc_t enc) {
+    debug_println("init");
+    SERIAL_WIFI.begin(115200);
+    SERIAL_WIFI.setTimeout(SERIAL_WIFI_TIMOUT);
+    
+    if (!command("AT+RST","ready\r\n")) {
+        debug_println("error: unable to reset module");
+        return false;
+    }
+        
+    
+	if (mode == STA) {	
+		if (!command("AT+CWMODE=1","done","no change")) {
+            debug_println("error: unable to set mode to STA (station)");
 			return false;
 		}
-		Reset();
-		confJAP(ssid, pwd);
-	}
-	else if (a == 2)
-	{
-		bool b = confMode(a);
-		if (!b)
-		{
-			return false;
-		}
-		Reset();
-		confSAP(ssid, pwd, chl, ecn);
-	}
-	else if (a == 3)
-	{
-		bool b = confMode(a);
-		if (!b)
-		{
-			return false;
-		}
-		Reset();
-		confJAP(ssid, pwd);
-		confSAP(ssid, pwd, chl, ecn);
-	}
-	
+        
+        char cmd[64];
+        if (pwd) {
+            sprintf(cmd,"AT+CWJAP=\"%s\",\"%s\"",ssid,pwd);
+        } else {
+            sprintf(cmd,"AT+CWJAP=\"%s\"",ssid);
+        }
+        if (!command(cmd, "OK")) {
+            debug_println("error: unable to join AP");
+            return false;
+        }
+	} else {
+        debug_println("error: modes other than STA not yet supported");
+        return false;
+    }
+    
+    // mux not supported yet
+    if (!command("AT+CIPMUX=0","OK")) {
+        debug_println("error: unable to disable mux");
+        return false;
+    }
+    
+    delay(POST_INIT_DELAY); // wait for DHCP (if DHCP is to happen)
+    
 	return true;
 }
 
-void WIFI::ipConfig(byte type, String addr, int port, boolean a, byte id)
-{
-	if (a == 0 )
-	{
+/*void WIFI::ipConfig(byte type, String addr, int port, boolean a, byte id) {
+	if (a == 0 ) {
 		confMux(a);
 		long timeStart = millis();
-		while (1)
-		{
+		while (1) {
 			long time0 = millis();
-			if (time0 - timeStart > 5000)
-			{
+			if (time0 - timeStart > 5000) {
 				break;
 			}
 		}
 		newMux(type, addr, port);
 	}
-	else if (a == 1)
-	{
+	else if (a == 1) {
 		confMux(a);
 		long timeStart = millis();
-		while (1)
-		{
+		while (1) {
 			long time0 = millis();
-			if (time0 - timeStart > 5000)
-			{
+			if (time0 - timeStart > 5000) {
 				break;
 			}
 		}
 		newMux(id, type, addr, port);
 	}
 }
+*/
 
-
-int WIFI::ReceiveMessage(char *buf, int MsgLen)
-{
+int WIFI::ReceiveMessage(char *buf, int MsgLen) {
 	//+IPD:11,wifi read11
 	//done
 	String data = "";
-	if (Serial1.available()>0)
-	{
-		//Serial.println(Serial1.available());
-		char c0 = Serial1.read();
-		if (c0 == '+')
-		{
-			while (1)
-			{
-				if (Serial1.available()>0)
-				{
-					char c = Serial1.read();
+	if (SERIAL_WIFI.available()>0) {
+		//Serial.println(SERIAL_WIFI.available());
+		char c0 = SERIAL_WIFI.read();
+		if (c0 == '+') {
+			while (1) {
+				if (SERIAL_WIFI.available()>0) {
+					char c = SERIAL_WIFI.read();
 					data += c;
 				}
-				if (data.indexOf("done")!=-1)
-				{
+				if (data.indexOf("done")!=-1) {
 					break;
 				}
 			}
 			//Serial.println(data);
 			int sLen = strlen(data.c_str());
 			int i;
-			for (i = 0; i <= sLen; i++)
-			{
-				if (data[i] == ':')
-				{
+			for (i = 0; i <= sLen; i++) {
+				if (data[i] == ':') {
 					break;
 				}
 				
@@ -135,283 +189,6 @@ int WIFI::ReceiveMessage(char *buf, int MsgLen)
 }
 
 //////////////////////////////////////////////////////////////////////////
-
-
-/*===================================*/
-/*
- * 重启wifi芯片
- *
- * */
-/*===================================*/
-void WIFI::Reset(void)
-{
-    Serial1.println("AT+Reset");
-    while (1) {                            //当串口有完成数据返回时，结束语句
-        if(Serial1.find("OCROBOT WIFI ready")==true)
-        {
-           break;
-        }
-    }
-}
-
-/*********************************************
- *********************************************
- *********************************************
-                   WIFI功能指令
- *********************************************
- *********************************************
- *********************************************
- */
-
-/*==============================*/
-/*
- *
- * 查询目前wifi模块的工作模式
- * */
-/*===============================*/
-String WIFI::showMode()
-{
-    String data;
-    Serial1.println("AT+MODE?");  //发送AT指令
-    while (1) {
-     if(Serial1.available()>0)
-     {
-     char a =Serial1.read();
-     data=data+a;
-     }
-     if (data.indexOf("done")!=-1)
-     {
-         break;
-     }
-  }
-    if(data.indexOf("1")!=-1)
-    {
-        return "Station";
-    }else if(data.indexOf("2")!=-1)
-    {
-            return "AP";
-    }else if(data.indexOf("3")!=-1)
-    {
-         return "AP+Station";
-    }
-}
-
-
-
-/*================================*/
-/*
- *
- * 配置WIFI模块的工作模式(需要重启后方可生效)(done)
- *
- * */
-/*================================*/
-
-bool WIFI::confMode(byte a)
-{
-    String data;
-     Serial1.print("AT+MODE=");  //发送AT指令
-     Serial1.println(String(a));
-     while (1) {
-      if(Serial1.available()>0)
-      {
-      char a =Serial1.read();
-      data=data+a;
-      }
-      if (data.indexOf("done")!=-1 || data.indexOf("no change")!=-1)
-      {
-          return true;
-      }
-	  if (data.indexOf("error")!=-1 || data.indexOf("busy")!=-1)
-	  {
-		  return false;
-	  }
-	  
-   }
-}
-
-
-
-
-/*===================================*/
-/*
- * 返回（字符串）当前wifi搜索到的接入点信息(只能在)
- * 加密类型、SSID、信号强度
- * */
-/*===================================*/
-String WIFI::showAP(void)
-{
-    String data;
-    Serial1.println("AT+ShowAP");  //发送AT指令
-    while (1) {
-   if(Serial1.available()>0)
-   {
-     char a =Serial1.read();
-     data=data+a;
-   }
-     if (data.indexOf("done")!=-1 || data.indexOf("ERROR")!=-1 )
-     {
-         break;
-     }
-  }
-    if(data.indexOf("ERROR")!=-1)
-    {
-        return "ERROR";
-    }
-    else{
-       char head[4] = {0x0D,0x0A};   //头部多余字符串
-       char tail[7] = {0x0D,0x0A,0x0D,0x0A};        //尾部多余字符串
-       data.replace("AT+ShowAP","");
-       data.replace("done","");
-       data.replace("+ShowAP","WIFI");
-       data.replace(head,"");
-       data.replace(tail,"");
-        return data;
-        }
- }
-
-
-/*===================================*/
-/*
- * 查询返回目前连接的wifi接入点信息  （done）
- *
- **/
-/*===================================*/
-String WIFI::showJAP(void)
-{
-    Serial1.println("AT+JoinAP?");  //发送AT指令
-      String data;
-      while (1) {
-       if(Serial1.available()>0)
-       {
-       char a =Serial1.read();
-       data=data+a;
-       }
-       if (data.indexOf("done")!=-1 || data.indexOf("ERROR")!=-1 )
-       {
-           break;
-       }
-    }
-      char head[4] = {0x0D,0x0A};   //头部多余字符串
-      char tail[7] = {0x0D,0x0A,0x0D,0x0A};        //尾部多余字符串
-      data.replace("AT+JoinAP?","");
-      data.replace("+JoinAP","AP");
-      data.replace("done","");
-      data.replace(head,"");
-      data.replace(tail,"");
-          return data;
-}
-/*=======================================*/
-/*
- * 配置登陆网络需要的ssid名称以及密码(未验证，未测试)
- *
- * */
-/*=======================================*/
-void WIFI::confJAP(String ssid , String pwd)
-{
-    Serial1.print("AT+JoinAP=");
-    Serial1.print("\"");     //"ssid"
-    Serial1.print(ssid);
-    Serial1.print("\"");
-
-    Serial1.print(",");
-
-    Serial1.print("\"");      //"pwd"
-    Serial1.print(pwd);
-    Serial1.println("\"");
-
-
-    while (1) {                            //当串口有完成数据返回时，结束语句
-        if(Serial1.find("done")==true)
-        {
-           break;
-        }
-    }
-}
-/*=============================================*/
-/*
- * 退出目前登录的wifi节点
- *
- * /
- /*============================================*/
-
-void WIFI::quitAP(void)
-{
-    Serial1.println("AT+ExtAP");
-    while (1) {                            //当串口有完成数据返回时，结束语句
-        if(Serial1.find("done")==true)
-        {
-           break;
-        }
-    }
-
-}
-
-/*===============================================*/
-/*
- *
- * AP模式下的网络配置
- *
- * */
-/*==============================================*/
-String WIFI::showSAP()
-{
-    Serial1.println("AT+SAP?");  //发送AT指令
-      String data;
-      while (1) {
-       if(Serial1.available()>0)
-       {
-       char a =Serial1.read();
-       data=data+a;
-       }
-       if (data.indexOf("done")!=-1 || data.indexOf("ERROR")!=-1 )
-       {
-           break;
-       }
-    }
-      char head[4] = {0x0D,0x0A};   //头部多余字符串
-      char tail[7] = {0x0D,0x0A,0x0D,0x0A};        //尾部多余字符串
-      data.replace("AT+SAP?","");
-      data.replace("+SAP","mySAP");
-      data.replace("done","");
-      data.replace(head,"");
-      data.replace(tail,"");
-          return data;
-}
-
-/*==============================================*/
-/*
- *
- * 设置AP模式下的SSID 密码 信道 加密方式等信息  (只能用于ap模式或者ap+Station模式下，重启芯片后生效)
- *
- * /
- /*============================================*/
-
-void WIFI::confSAP(String ssid , String pwd , byte chl , byte ecn)
-{
-    Serial1.print("AT+SAP=");  //发送AT指令
-    Serial1.print("\"");     //"ssid"
-    Serial1.print(ssid);
-    Serial1.print("\"");
-
-    Serial1.print(",");
-
-    Serial1.print("\"");      //"pwd"
-    Serial1.print(pwd);
-    Serial1.print("\"");
-
-    Serial1.print(",");
-    Serial1.print(String(chl));
-
-    Serial1.print(",");
-    Serial1.println(String(ecn));
-    while (1) {                            //当串口有完成数据返回时，结束语句
-        if(Serial1.find("done")==true ||Serial1.find("ERROR")==true)
-        {
-           break;
-        }
-     }
-
-}
 
 
 /*********************************************
@@ -434,18 +211,15 @@ void WIFI::confSAP(String ssid , String pwd , byte chl , byte ecn)
  * <port>  port number
  * /
  /*============================================*/
-String WIFI::showStatus(void)
-{
-    Serial1.println("AT+ShowSTA");  //发送AT指令
+String WIFI::showStatus(void) {
+    SERIAL_WIFI.println("AT+ShowSTA");  //发送AT指令
       String data;
       while (1) {
-       if(Serial1.available()>0)
-       {
-       char a =Serial1.read();
+       if(SERIAL_WIFI.available()>0) {
+       char a =SERIAL_WIFI.read();
        data=data+a;
        }
-       if (data.indexOf("done")!=-1)
-       {
+       if (data.indexOf("done")!=-1) {
            break;
        }
     }
@@ -464,19 +238,16 @@ String WIFI::showStatus(void)
  * 查询目前的链接模式（单链接or多链接）
  * */
 /*============================================*/
-String WIFI::showMux(void)
-{
+String WIFI::showMux(void) {
     String data;
-    Serial1.println("AT+MUX?");  //发送AT指令
+    SERIAL_WIFI.println("AT+MUX?");  //发送AT指令
 
       while (1) {
-       if(Serial1.available()>0)
-       {
-       char a =Serial1.read();
+       if(SERIAL_WIFI.available()>0) {
+       char a =SERIAL_WIFI.read();
        data=data+a;
        }
-       if (data.indexOf("done")!=-1)
-       {
+       if (data.indexOf("done")!=-1) {
            break;
        }
     }
@@ -493,13 +264,11 @@ String WIFI::showMux(void)
  * 设置链接模式（单链接or多链接）
  * */
 /*============================================*/
-void WIFI::confMux(boolean a)
-{
- Serial1.print("AT+MUX=");
- Serial1.println(a);           //发送AT指令
+void WIFI::confMux(boolean a) {
+ SERIAL_WIFI.print("AT+MUX=");
+ SERIAL_WIFI.println(a);           //发送AT指令
  while (1) {                            //当串口有完成数据返回时，结束语句
-     if(Serial1.find("done")==true || Serial1.find("Link is builded")==true)
-     {
+     if(SERIAL_WIFI.find("done")==true || SERIAL_WIFI.find("Link is builded")==true) {
         break;
      }
   }
@@ -512,34 +281,29 @@ void WIFI::confMux(boolean a)
  *
  * */
 /*===========================================*/
-void WIFI::newMux(byte type, String addr, int port)
-
-{
+void WIFI::newMux(byte type, String addr, int port) {
     String data;
-    Serial1.print("AT+NewSTA=");
-    if(type>0)
-    {
-        Serial1.print("\"TCP\"");
+    SERIAL_WIFI.print("AT+NewSTA=");
+    if(type>0) {
+        SERIAL_WIFI.print("\"TCP\"");
     }else
     {
-        Serial1.print("\"UDP\"");
+        SERIAL_WIFI.print("\"UDP\"");
     }
-    Serial1.print(",");
-    Serial1.print("\"");
-    Serial1.print(addr);
-    Serial1.print("\"");
-    Serial1.print(",");
-//    Serial1.print("\"");
-    Serial1.println(String(port));
-//    Serial1.println("\"");
+    SERIAL_WIFI.print(",");
+    SERIAL_WIFI.print("\"");
+    SERIAL_WIFI.print(addr);
+    SERIAL_WIFI.print("\"");
+    SERIAL_WIFI.print(",");
+//    SERIAL_WIFI.print("\"");
+    SERIAL_WIFI.println(String(port));
+//    SERIAL_WIFI.println("\"");
     while (1) {
-     if(Serial1.available()>0)
-     {
-     char a =Serial1.read();
+     if(SERIAL_WIFI.available()>0) {
+     char a =SERIAL_WIFI.read();
      data=data+a;
      }
-     if (data.indexOf("done")!=-1 || data.indexOf("ALREAY CONNECT")!=-1 || data.indexOf("ERROR")!=-1)
-     {
+     if (data.indexOf("done")!=-1 || data.indexOf("ALREAY CONNECT")!=-1 || data.indexOf("ERROR")!=-1) {
          break;
      }
   }
@@ -550,39 +314,34 @@ void WIFI::newMux(byte type, String addr, int port)
  *
  * */
 /*===========================================*/
-void WIFI::newMux( byte id, byte type, String addr, int port)
+void WIFI::newMux( byte id, byte type, String addr, int port) {
 
-{
-
-    Serial1.print("AT+NewSTA=");
-    Serial1.print("\"");
-    Serial1.print(String(id));
-    Serial1.print("\"");
-    if(type>0)
-    {
-        Serial1.print("\"tcp\"");
+    SERIAL_WIFI.print("AT+NewSTA=");
+    SERIAL_WIFI.print("\"");
+    SERIAL_WIFI.print(String(id));
+    SERIAL_WIFI.print("\"");
+    if(type>0) {
+        SERIAL_WIFI.print("\"tcp\"");
     }else
     {
-        Serial1.print("\"UDP\"");
+        SERIAL_WIFI.print("\"UDP\"");
     }
-    Serial1.print(",");
-    Serial1.print("\"");
-    Serial1.print(addr);
-    Serial1.print("\"");
-    Serial1.print(",");
-//    Serial1.print("\"");
-    Serial1.println(String(port));
-//    Serial1.println("\"");
+    SERIAL_WIFI.print(",");
+    SERIAL_WIFI.print("\"");
+    SERIAL_WIFI.print(addr);
+    SERIAL_WIFI.print("\"");
+    SERIAL_WIFI.print(",");
+//    SERIAL_WIFI.print("\"");
+    SERIAL_WIFI.println(String(port));
+//    SERIAL_WIFI.println("\"");
     String data;
     while (1) {
 
-     if(Serial1.available()>0)
-     {
-     char a =Serial1.read();
+     if(SERIAL_WIFI.available()>0) {
+     char a =SERIAL_WIFI.read();
      data=data+a;
      }
-     if (data.indexOf("done")!=-1 || data.indexOf("ALREAY CONNECT")!=-1 || data.indexOf("ERROR")!=-1)
-     {
+     if (data.indexOf("done")!=-1 || data.indexOf("ALREAY CONNECT")!=-1 || data.indexOf("ERROR")!=-1) {
          break;
      }
   }
@@ -594,30 +353,26 @@ void WIFI::newMux( byte id, byte type, String addr, int port)
  *
  * */
 /*==============================================*/
-void WIFI::Send(String str)
-{
-    Serial1.print("AT+UpDate=");
-//    Serial1.print("\"");
-    Serial1.println(str.length());
-//    Serial1.println("\"");
+void WIFI::Send(String str) {
+    SERIAL_WIFI.print("AT+UpDate=");
+//    SERIAL_WIFI.print("\"");
+    SERIAL_WIFI.println(str.length());
+//    SERIAL_WIFI.println("\"");
     while (1) {                            //当串口有完成数据返回时，结束语句
-        if(Serial1.find(">")==true )
-        {
+        if(SERIAL_WIFI.find(">")==true ) {
            break;
         }
      }
-    Serial1.println(str);
+    SERIAL_WIFI.println(str);
 
 
     String data;
     while (1) {
-     if(Serial1.available()>0)
-     {
-     char a =Serial1.read();
+     if(SERIAL_WIFI.available()>0) {
+     char a =SERIAL_WIFI.read();
      data=data+a;
      }
-     if (data.indexOf("SEND OK")!=-1)
-     {
+     if (data.indexOf("SEND OK")!=-1) {
          break;
      }
   }
@@ -629,31 +384,27 @@ void WIFI::Send(String str)
  *
  * */
 /*==============================================*/
-void WIFI::Send(byte id, String str)
-{
-    Serial1.print("AT+UpDate=");
+void WIFI::Send(byte id, String str) {
+    SERIAL_WIFI.print("AT+UpDate=");
 
-    Serial1.print(String(id));
-    Serial1.println(",");
-    Serial1.println(str.length());
+    SERIAL_WIFI.print(String(id));
+    SERIAL_WIFI.println(",");
+    SERIAL_WIFI.println(str.length());
     while (1) {                            //当串口有完成数据返回时，结束语句
-        if(Serial1.find(">")==true )
-        {
+        if(SERIAL_WIFI.find(">")==true ) {
            break;
         }
      }
-    Serial1.println(str);
+    SERIAL_WIFI.println(str);
 
 
     String data;
     while (1) {
-     if(Serial1.available()>0)
-     {
-     char a =Serial1.read();
+     if(SERIAL_WIFI.available()>0) {
+     char a =SERIAL_WIFI.read();
      data=data+a;
      }
-     if (data.indexOf("SEND OK")!=-1)
-     {
+     if (data.indexOf("SEND OK")!=-1) {
          break;
      }
   }
@@ -666,19 +417,16 @@ void WIFI::Send(byte id, String str)
  *
  * *-*/
 /*=======================================*/
-void WIFI::closeMux(void)
-{
-    Serial1.println("AT+CLOSE");
+void WIFI::closeMux(void) {
+    SERIAL_WIFI.println("AT+CLOSE");
 
     String data;
     while (1) {
-     if(Serial1.available()>0)
-     {
-     char a =Serial1.read();
+     if(SERIAL_WIFI.available()>0) {
+     char a =SERIAL_WIFI.read();
      data=data+a;
      }
-     if (data.indexOf("Linked")!=-1 || data.indexOf("ERROR")!=-1 || data.indexOf("we must restart")!=-1)
-     {
+     if (data.indexOf("Linked")!=-1 || data.indexOf("ERROR")!=-1 || data.indexOf("we must restart")!=-1) {
          break;
      }
   }
@@ -692,19 +440,16 @@ void WIFI::closeMux(void)
  *
  * *-*/
 /*=======================================*/
-void WIFI::closeMux(byte id)
-{
-    Serial1.print("AT+CLOSE=");
-    Serial1.println(String(id));
+void WIFI::closeMux(byte id) {
+    SERIAL_WIFI.print("AT+CLOSE=");
+    SERIAL_WIFI.println(String(id));
     String data;
     while (1) {
-     if(Serial1.available()>0)
-     {
-     char a =Serial1.read();
+     if(SERIAL_WIFI.available()>0) {
+     char a =SERIAL_WIFI.read();
      data=data+a;
      }
-     if (data.indexOf("done")!=-1 || data.indexOf("Link is not")!=-1 || data.indexOf("Cant close")!=-1)
-     {
+     if (data.indexOf("done")!=-1 || data.indexOf("Link is not")!=-1 || data.indexOf("Cant close")!=-1) {
          break;
      }
   }
@@ -716,18 +461,15 @@ void WIFI::closeMux(byte id)
  * 获取目前的本机IP地址
  * */
 /*=========================================*/
-String WIFI::showIP(void)
-{
-    Serial1.println("AT+ShowIP");  //发送AT指令
+String WIFI::showIP(void) {
+    SERIAL_WIFI.println("AT+ShowIP");  //发送AT指令
     String data;
     while (1) {
-     if(Serial1.available()>0)
-     {
-     char a =Serial1.read();
+     if(SERIAL_WIFI.available()>0) {
+     char a =SERIAL_WIFI.read();
      data=data+a;
      }
-     if (data.indexOf("done")!=-1)
-     {
+     if (data.indexOf("done")!=-1) {
          break;
      }
   }
@@ -742,22 +484,19 @@ String WIFI::showIP(void)
 */
 /*=======================================*/
 
-void WIFI::confServer(byte mode, int port)
-{
-    Serial1.print("AT+Server=");  //发送AT指令
-    Serial1.print(String(mode));
-    Serial1.print(",");
-    Serial1.println(String(port));
+void WIFI::confServer(byte mode, int port) {
+    SERIAL_WIFI.print("AT+Server=");  //发送AT指令
+    SERIAL_WIFI.print(String(mode));
+    SERIAL_WIFI.print(",");
+    SERIAL_WIFI.println(String(port));
 
     String data;
     while (1) {
-     if(Serial1.available()>0)
-     {
-     char a =Serial1.read();
+     if(SERIAL_WIFI.available()>0) {
+     char a =SERIAL_WIFI.read();
      data=data+a;
      }
-     if (data.indexOf("done")!=-1 || data.indexOf("Link is builded")!=-1)
-     {
+     if (data.indexOf("done")!=-1 || data.indexOf("Link is builded")!=-1) {
          break;
      }
   }

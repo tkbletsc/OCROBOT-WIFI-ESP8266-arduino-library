@@ -1,82 +1,70 @@
-
-/*
-新添加 整合接口
-Initialize
-ipConfig
-
-参数：网络方式  SSID PASSWORD
-如果网络方式选择AP模式  最后两个参数可选择填写  默认通道1 加密方式2
-bool Initialize(byte a, String ssid, String pwd, byte chl = 1, byte ecn = 2);
-
-参数：通信方式  对方ip 对方端口
-默认单对单通信boolean为0  如果改为1  可以分配ID 0~4
-0号可以连接客户端和服务器，其他只能连接服务器
-void ipConfig(byte type, String addr, int port, boolean a = 0, byte id = 0);
-
-参数：接收buf 未开发参数（保留）
-返回接收到的buf的长度
-int ReceiveMessage(char *buf, int MsgLen = 0);
-
-例程编写 && 库函数整合
-by .oο麽麽茶㊣ (你们好屌)
-2014/9/18
-*/
-
+/**
+ * ESP8266 library
+ * 
+ * Original by user "534659123" on github -- https://github.com/534659123/OCROBOT-WIFI-ESP8266-arduino-library
+ * Adapted by Tyler Bletsch (Tyler.Bletsch@gmail.com) -- https://github.com/tkbletsc/OCROBOT-WIFI-ESP8266-arduino-library
+ */
 #ifndef __UARLWIFI_H__
 #define __UARLWIFI_H__
 #include <Arduino.h>
-//#include "NilRTOS.h"
 
+#ifndef SERIAL_WIFI
+#define SERIAL_WIFI Serial
+#endif
 
-#define    OPEN          0
-#define    WEP           1
-#define    WAP_PSK       2
-#define    WAP2_PSK      3
-#define    WAP_WAP2_PSK  4
+// for commands with multiple success states, i just wait until the thing has said all it wants to say, then check
+// (a more correct implementation would be a state machine based on multiple expected strings, but meh)
+// anyway, this is the timeout for that wait
+#define DEFAULT_EXPECT_TIMEOUT 2000
 
-#define    TCP     1
-#define    tcp     1
-#define    UDP     0
-#define    udp     0
+// port-level timeout (.setTimeout())
+#define SERIAL_WIFI_TIMOUT 2000
 
-#define    OPEN    1
-#define    CLOSE   0
+// time to wait after init, mainly for DHCP
+#define POST_INIT_DELAY 3000
 
-#define    STA     1
-#define    AP      2
-#define    AT_STA  3
+// Access point encryption types (given back from the AT+CWLAP command that lists APs)
+typedef enum {
+    OPEN = 0,
+    WEP = 1,
+    WAP_PSK = 2,
+    WAP2_PSK = 3,
+    WAP_WAP2_PSK = 4,
+} wifi_enc_t;
 
-#define SERIAL_TX_BUFFER_SIZE 128
-#define SERIAL_RX_BUFFER_SIZE 128
+// protocols
+typedef enum {
+    TCP = 1,
+    UDP = 0,
+} conn_type_t;
 
-class WIFI
-{
+// Used with +CWMODE to select WIFI application mode
+// STA = Station (client), AP = Access Point, AP_STA = Both
+typedef enum {
+    STA = 1,
+    AP = 2,
+    AP_STA = 3,
+} wifi_mode_t;
+
+class WIFI {
   public:
+    Stream* dbg;
 
     WIFI(void);
+    
+    void set_debug_stream(Stream& s);
 	
-	//整合接口
-	bool Initialize(byte a, String ssid, String pwd, byte chl = 1, byte ecn = 2);
-	void ipConfig(byte type, String addr, int port, boolean a = 0, byte id = 0);
+	bool Initialize(wifi_mode_t mode, char* ssid, char* pwd, byte channel = 1, wifi_enc_t enc = WAP_PSK);
+	//void ipConfig(byte type, String addr, int port, boolean a = 0, byte id = 0);
 	
-	void Send(String str);  //单路模式发送数据
+	void Send(String str);  // Send
 	void Send(byte id, String str);  //多路模式发送数据
 		
 	int ReceiveMessage(char *buf, int MsgLen = 0);
 	
-    //String begin(void);
-    /*=================WIFI功能指令=================*/
-    void Reset(void);    //重启模块
-	bool confMode(byte a);   //设置模块的模式
-	void confJAP(String ssid , String pwd);    //配置登陆wifi接入点
-	void confSAP(String ssid , String pwd , byte chl , byte ecn);       //配置ap模式下的网络参数 ssid 密码 通道号 以及加密方式	
-	
-    String showMode(void);   //查询模块目前模式
-    String showAP(void);   //返回wifi列表
-    String showJAP(void);  //返回目前连接的wifi接入点信息
-    void quitAP(void);    //退出当前wifi连接
-    String showSAP(void);     //显示ap模式下的模块的ssid 密码 通道号 以及加密方式
-
+    bool command(char* cmd, char* exp1, char* exp2=NULL, int timeout=DEFAULT_EXPECT_TIMEOUT);
+    bool expect(char* exp1, char* exp2=NULL, int timeout=DEFAULT_EXPECT_TIMEOUT);
+    
     /*================TCP/IP指令================*/
     String showStatus(void);    //查询链接状态
     String showMux(void);       //查询目前的链接模式（单链接or多链接）
@@ -89,7 +77,7 @@ class WIFI
     void confServer(byte mode, int port);  //配置服务器
 	
 	String m_rev;
-
+    
 };
 
 #endif
